@@ -1,0 +1,25 @@
+# .NET / ASP.NET Core
+[Bb]in/
+[Oo]bj/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+.vs/
+*.db
+*.sqlite
+*.mdf
+*.ldf
+
+# Flutter / Dart
+.dart_tool/
+.packages
+build/
+.pub-cache/
+.pub/
+android/.gradle/
+android/app/debug/
+android/app/profile/
+android/app/release/
+ios/Flutter/App.framework
+ios/Flutter/Flutter.framework
