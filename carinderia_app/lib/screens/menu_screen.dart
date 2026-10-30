@@ -5,6 +5,8 @@ import '../models/create_order_item.dart';
 import '../models/menu_item.dart';
 import '../models/cart_item.dart';
 import '../services/api_service.dart';
+import '../widgets/menu_grid_view.dart';
+import '../widgets/cart_panel.dart';
 
 class MenuScreen extends StatefulWidget {
   const MenuScreen({super.key});
@@ -137,247 +139,27 @@ class _MenuScreenState extends State<MenuScreen> {
       ),
       body: Row(
         children: [
-          // Left Side: Menu Grid / Categories
+          // Left Side: Menu Grid
           Expanded(
             flex: 3,
-            child: FutureBuilder<List<Category>>(
-              future: _menuFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                } else if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
-                } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return const Center(
-                    child: Text('No active menu available today.'),
-                  );
-                }
-
-                final categories = snapshot.data!;
-                return ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: categories.length,
-                  itemBuilder: (context, catIndex) {
-                    final category = categories[catIndex];
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          category.name,
-                          style: const TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const Divider(),
-                        GridView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          gridDelegate:
-                              const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 3,
-                                childAspectRatio: 3 / 2,
-                                crossAxisSpacing: 10,
-                                mainAxisSpacing: 10,
-                              ),
-                          itemCount: category.menuItems.length,
-                          itemBuilder: (context, itemIndex) {
-                            final menuItem = category.menuItems[itemIndex];
-                            return Card(
-                              elevation: 2,
-                              child: InkWell(
-                                onTap: menuItem.isAvailableToday
-                                    ? () => _addToCart(menuItem)
-                                    : null,
-                                child: Padding(
-                                  padding: const EdgeInsets.all(8.0),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text(
-                                        menuItem.name,
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16,
-                                          color: menuItem.isAvailableToday
-                                              ? Colors.white
-                                              : Colors.grey,
-                                        ),
-                                      ),
-                                      Text(
-                                        '₱${menuItem.price.toStringAsFixed(2)}',
-                                        style: const TextStyle(
-                                          color: Colors.greenAccent,
-                                        ),
-                                      ),
-                                      if (!menuItem.isAvailableToday)
-                                        const Text(
-                                          'Sold Out',
-                                          style: TextStyle(
-                                            color: Colors.red,
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 20),
-                      ],
-                    );
-                  },
-                );
-              },
+            child: MenuGridView(
+              menuFuture: _menuFuture,
+              onAddToCart: _addToCart,
             ),
           ),
 
-          // Right Side: Current Cart & Checkout Panel
+          // Right Side: Cart & Checkout Panel
           Expanded(
             flex: 2,
-            child: Container(
-              color: Colors.black12,
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Text(
-                    'Current Order',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                  const Divider(),
-                  Expanded(
-                    child: _cart.isEmpty
-                        ? const Center(child: Text('Your cart is empty'))
-                        : ListView(
-                            children: _cart.values.map((cartItem) {
-                              return ListTile(
-                                title: Text(cartItem.menuItem.name),
-                                subtitle: Text(
-                                  '₱${cartItem.totalPrice.toStringAsFixed(2)}',
-                                ),
-                                trailing: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    IconButton(
-                                      icon: const Icon(
-                                        Icons.remove_circle_outline,
-                                      ),
-                                      onPressed: () =>
-                                          _removeFromCart(cartItem.menuItem.id),
-                                    ),
-                                    Text(
-                                      '${cartItem.quantity}',
-                                      style: const TextStyle(fontSize: 16),
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(
-                                        Icons.add_circle_outline,
-                                      ),
-                                      onPressed: () =>
-                                          _addToCart(cartItem.menuItem),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }).toList(),
-                          ),
-                  ),
-                  const Divider(),
-
-                  // Total Amount
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Total Amount:',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Text(
-                          '₱${_cartTotal.toStringAsFixed(2)}',
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.deepOrange,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  // Payment Method Selector
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      ChoiceChip(
-                        label: const Text('Cash'),
-                        selected: _paymentMethod == 0,
-                        onSelected: (selected) =>
-                            setState(() => _paymentMethod = 0),
-                      ),
-                      const SizedBox(width: 10),
-                      ChoiceChip(
-                        label: const Text('QR Code'),
-                        selected: _paymentMethod == 1,
-                        onSelected: (selected) =>
-                            setState(() => _paymentMethod = 1),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Expanded(
-                        child: Center(
-                          child: ChoiceChip(
-                            label: const Text('Cash'),
-                            selected: _paymentMethod == 0,
-                            onSelected: (selected) =>
-                                setState(() => _paymentMethod = 0),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Center(
-                          child: ChoiceChip(
-                            label: const Text('QR Code'),
-                            selected: _paymentMethod == 1,
-                            onSelected: (selected) =>
-                                setState(() => _paymentMethod = 1),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 15),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.deepOrange,
-                      padding: const EdgeInsets.all(16),
-                    ),
-                    onPressed: (_isSubmitting || _cart.isEmpty)
-                        ? null
-                        : _submitOrder,
-                    child: _isSubmitting
-                        ? const CircularProgressIndicator(color: Colors.white)
-                        : const Text(
-                            'Place Order (Send to Kitchen)',
-                            style: TextStyle(fontSize: 16, color: Colors.white),
-                          ),
-                  ),
-                ],
-              ),
+            child: CartPanel(
+              cart: _cart,
+              cartTotal: _cartTotal,
+              paymentMethod: _paymentMethod,
+              isSubmitting: _isSubmitting,
+              onIncrement: _addToCart,
+              onDecrement: _removeFromCart,
+              onPaymentChanged: (val) => setState(() => _paymentMethod = val),
+              onSubmitOrder: _submitOrder,
             ),
           ),
         ],
