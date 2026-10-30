@@ -25,7 +25,7 @@ class _MenuScreenState extends State<MenuScreen> {
 
   // Local Cart State
   final Map<int, CartItem> _cart = {};
-  int _tableNumber = 1;
+  final int _tableNumber = 1;
   int _paymentMethod = 0; // 0 = Cash, 1 = QRCode
   bool _isSubmitting = false;
 
