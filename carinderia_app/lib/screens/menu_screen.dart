@@ -12,7 +12,8 @@ import '../widgets/menu_grid_view.dart';
 import '../widgets/cart_panel.dart';
 
 class MenuScreen extends StatefulWidget {
-  const MenuScreen({super.key});
+  final int tableNumber;
+  const MenuScreen({super.key, required this.tableNumber});
 
   @override
   State<MenuScreen> createState() => _MenuScreenState();
@@ -164,7 +165,7 @@ class _MenuScreenState extends State<MenuScreen> {
     }).toList();
 
     bool success = await _apiService.placeOrder(
-      tableNumber: _tableNumber,
+      tableNumber: widget.tableNumber,
       paymentMethod: _paymentMethod,
       items: itemsPayload,
     );
@@ -209,25 +210,6 @@ class _MenuScreenState extends State<MenuScreen> {
               child: Icon(Icons.receipt_long),
             ),
             onPressed: () => _showActiveOrdersDialog(),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: Center(
-              child: DropdownButton<int>(
-                value: _tableNumber,
-                dropdownColor: Colors.grey[900],
-                style: const TextStyle(color: Colors.white),
-                items: List.generate(10, (index) => index + 1)
-                    .map(
-                      (table) => DropdownMenuItem(
-                        value: table,
-                        child: Text('Table $table'),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (val) => setState(() => _tableNumber = val ?? 1),
-              ),
-            ),
           ),
         ],
       ),

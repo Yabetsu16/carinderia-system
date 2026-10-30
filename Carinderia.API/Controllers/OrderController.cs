@@ -24,7 +24,7 @@ namespace Carinderia.API.Controllers
         }
 
         [HttpPost]
-        public async Task<ActionResult<Order>> PlaceOrder([FromBody] CreateOrderDto orderDto)
+        public async Task<ActionResult<Order>> PlaceOrder(int tableNumber, [FromBody] CreateOrderDto orderDto)
         {
             if (orderDto.Items == null || !orderDto.Items.Any())
             {
@@ -33,7 +33,7 @@ namespace Carinderia.API.Controllers
 
             var order = new Order
             {
-                TableNumber = orderDto.TableNumber,
+                TableNumber = tableNumber,
                 PaymentMethod = orderDto.PaymentMethod,
                 // PaymentMethod 1 (QR Code) starts as PendingPayment; Cash starts as Preparing
                 Status = orderDto.PaymentMethod == PaymentMethod.QRCode

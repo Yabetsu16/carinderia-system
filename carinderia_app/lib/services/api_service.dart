@@ -28,18 +28,24 @@ class ApiService {
   }
 
   Future<bool> placeOrder({
-    required int tableNumber,
+    required int tableNumber, // <--- Accept tableNumber here
     required int paymentMethod,
     required List<CreateOrderItem> items,
   }) async {
     try {
+      // baseUrl is 'http://localhost:5113/api', so this targets 'http://localhost:5113/api/1/order'
+      final url = Uri.parse(
+        '${baseUrl.replaceAll('/api', '')}/api/$tableNumber/order',
+      );
+
       final response = await http.post(
-        Uri.parse('$baseUrl/order'),
+        url,
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
-          'tableNumber': tableNumber,
           'paymentMethod': paymentMethod,
-          'items': items.map((item) => item.toJson()).toList(),
+          'items': items
+              .map((item) => item.toJson())
+              .toList(), // Note: no tableNumber in body anymore
         }),
       );
 

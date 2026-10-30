@@ -8,7 +8,6 @@ namespace Carinderia.API.DTO
 {
     public class CreateOrderDto
     {
-        public int TableNumber { get; set; }
         public PaymentMethod PaymentMethod { get; set; }
         public List<CreateOrderItemDto> Items { get; set; } = new();
     }
