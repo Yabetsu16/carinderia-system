@@ -46,8 +46,25 @@ class _KitchenScreenState extends State<KitchenScreen> {
   }
 
   Future<void> _handleStatusChanged(int orderId, String newStatus) async {
-    int statusInt = 0;
+    if (newStatus == 'Archived') {
+      bool success = await _apiService.archiveOrder(orderId);
+      if (success) {
+        _fetchOrders(); // Removes it from the active KDS list
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Order archived successfully.')),
+        );
+      } else {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to archive order.')),
+        );
+      }
+      return;
+    }
 
+    // Handle standard status changes (Preparing, Ready, Completed)
+    int statusInt = 0;
     if (newStatus == 'Preparing') {
       statusInt = 1;
     } else if (newStatus == 'Ready') {
@@ -68,12 +85,69 @@ class _KitchenScreenState extends State<KitchenScreen> {
     }
   }
 
+  void _showArchivedOrdersDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Archived Orders'),
+        content: SizedBox(
+          width: 500,
+          height: 400,
+          child: FutureBuilder<List<Order>>(
+            future: _apiService.getOrderHistory(), // This fetches the completed/archived list from your backend
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              } else if (snapshot.hasError) {
+                return Text('Error: ${snapshot.error}');
+              } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                return const Text('No archived orders found.');
+              }
+
+              final archivedOrders = snapshot.data!;
+              return ListView.builder(
+                itemCount: archivedOrders.length,
+                itemBuilder: (context, index) {
+                  final order = archivedOrders[index];
+                  return ListTile(
+                    leading: const Icon(Icons.archive, color: Colors.grey),
+                    title: Text(
+                      'Order #${order.id} - Table #${order.tableNumber}',
+                    ),
+                    subtitle: Text(
+                      'Items: ${order.items.length} | Status: ${order.status}',
+                    ),
+                    trailing: Text(
+                      order.createdAt.toLocal().toString().substring(11, 16),
+                      style: const TextStyle(color: Colors.grey),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Kitchen Display System (KDS)'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.archive_outlined),
+            tooltip: 'Archived Orders',
+            onPressed: () => _showArchivedOrdersDialog(context),
+          ),
           IconButton(icon: const Icon(Icons.refresh), onPressed: _fetchOrders),
         ],
       ),

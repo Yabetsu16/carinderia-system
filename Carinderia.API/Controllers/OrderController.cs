@@ -70,18 +70,36 @@ namespace Carinderia.API.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Order>>> GetAllOrders([FromQuery] OrderStatus? status)
+        public async Task<ActionResult<IEnumerable<Order>>> GetAllOrders([FromQuery] OrderStatus? status, [FromQuery] bool includeArchived = false)
         {
             var query = _context.Orders
                 .Include(o => o.OrderItems)
                 .ThenInclude(oi => oi.MenuItem)
                 .AsQueryable();
 
+            if (!includeArchived)
+            {
+                query = query.Where(o => !o.IsArchived);
+            }
+
             if (status.HasValue)
+            {
                 query = query.Where(o => o.Status == status.Value);
+            }
 
             var orders = await query.OrderByDescending(o => o.CreatedAt).ToListAsync();
+            return Ok(orders);
+        }
 
+        [HttpGet("history")]
+        public async Task<ActionResult<IEnumerable<Order>>> GetOrderHistory()
+        {
+            var orders = await _context.Orders
+                .Include(o => o.OrderItems)
+                .ThenInclude(oi => oi.MenuItem)
+                .Where(o => o.IsArchived)
+                .OrderByDescending(o => o.CreatedAt)
+                .ToListAsync();
             return Ok(orders);
         }
 
@@ -115,6 +133,18 @@ namespace Carinderia.API.Controllers
                 orderId = order.Id,
                 newStatus = order.Status.ToString()
             });
+        }
+
+        [HttpPatch("{id}/archive")]
+        public async Task<IActionResult> ArchiveOrder(int id)
+        {
+            var order = await _context.Orders.FindAsync(id);
+            if (order == null) return NotFound();
+
+            order.IsArchived = true; // Marks it as archived so it drops off the active board
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Order archived successfully" });
         }
     }
 }

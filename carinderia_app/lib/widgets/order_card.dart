@@ -145,9 +145,31 @@ class OrderCard extends StatelessWidget {
                     ),
                   ),
                 if (order.status.toLowerCase() == 'ready')
-                  OutlinedButton(
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.teal,
+                    ),
                     onPressed: () => onStatusChanged(order.id, 'Completed'),
-                    child: const Text('Complete / Clear'),
+                    icon: const Icon(Icons.done_all, color: Colors.white),
+                    label: const Text(
+                      'Mark Completed',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
+                if (order.status.toLowerCase() == 'completed')
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.grey[700],
+                    ),
+                    onPressed: () => onStatusChanged(
+                      order.id,
+                      'Archived',
+                    ), // Triggers archive action
+                    icon: const Icon(Icons.archive, color: Colors.white),
+                    label: const Text(
+                      'Archive',
+                      style: TextStyle(color: Colors.white),
+                    ),
                   ),
               ],
             ),

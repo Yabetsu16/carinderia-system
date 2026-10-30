@@ -28,7 +28,7 @@ namespace Carinderia.API.Models
         public PaymentMethod PaymentMethod { get; set; }
         public OrderStatus Status { get; set; }
         public decimal TotalAmount { get; set; }
-
+        public bool IsArchived { get; set; } = false;
         public List<OrderItem> OrderItems { get; set; } = new();
     }
 }

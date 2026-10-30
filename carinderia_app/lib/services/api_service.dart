@@ -78,4 +78,37 @@ class ApiService {
       return false;
     }
   }
+
+  Future<bool> archiveOrder(int orderId) async {
+    try {
+      final response = await http.patch(
+        Uri.parse('$baseUrl/order/$orderId/archive'),
+        headers: {'Content-Type': 'application/json'},
+      );
+      return response.statusCode == 200 || response.statusCode == 204;
+    } catch (e) {
+      debugPrint('Error archiving order: $e');
+      return false;
+    }
+  }
+
+  Future<List<Order>> getOrderHistory() async {
+    try {
+      // Pass includeCompleted=true to fetch history
+      final response = await http.get(
+        Uri.parse('$baseUrl/order?includeCompleted=true'),
+      );
+      if (response.statusCode == 200) {
+        List<dynamic> body = jsonDecode(response.body);
+        return body
+            .map((dynamic item) => Order.fromJson(item))
+            .where((o) => o.status == 'Completed')
+            .toList();
+      }
+      return [];
+    } catch (e) {
+      debugPrint('Error fetching history: $e');
+      return [];
+    }
+  }
 }
