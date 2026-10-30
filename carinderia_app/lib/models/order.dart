@@ -12,9 +12,14 @@ class OrderItem {
   });
 
   factory OrderItem.fromJson(Map<String, dynamic> json) {
+    // Extract name from the nested 'menuItem' object sent by C# EF Core
+    final menuItemObj = json['menuItem'] as Map<String, dynamic>?;
+    final extractedName =
+        menuItemObj?['name'] ?? json['menuItemName'] ?? json['name'] ?? 'Item';
+
     return OrderItem(
       id: json['id'] ?? 0,
-      menuItemName: json['menuItemName'] ?? json['name'] ?? '',
+      menuItemName: extractedName,
       quantity: json['quantity'] ?? 1,
       specialInstruction: json['specialInstruction'],
     );
@@ -62,9 +67,11 @@ class Order {
     } else {
       statusString = rawStatus?.toString() ?? 'Preparing';
     }
-    var rawItems = json['items'] as List? ?? [];
-    List<OrderItem> parsedItems = rawItems
-        .map((i) => OrderItem.fromJson(i))
+
+    // C# serializes OrderItems as 'orderItems' (camelCase)
+    var rawItems = json['orderItems'] ?? json['items'] as List? ?? [];
+    List<OrderItem> parsedItems = (rawItems as List)
+        .map((i) => OrderItem.fromJson(i as Map<String, dynamic>))
         .toList();
 
     return Order(
