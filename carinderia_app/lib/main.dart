@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_web_plugins/url_strategy.dart'; // Add this import
 
+import 'screens/cashier_screen.dart';
 import 'screens/menu_screen.dart';
 import 'screens/kitchen_screen.dart';
 
@@ -22,6 +23,7 @@ class CarinderiaApp extends StatelessWidget {
       routes: {
         '/': (context) => const MenuScreen(),
         '/kitchen': (context) => const KitchenScreen(),
+        '/cashier': (context) => const CashierScreen(),
       },
     );
   }

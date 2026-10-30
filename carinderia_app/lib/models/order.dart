@@ -31,6 +31,7 @@ class Order {
   final int tableNumber;
   final int paymentMethod; // 0 = Cash, 1 = QRCode
   final String status; // 'Pending', 'Preparing', 'Ready', 'Completed'
+  final double totalAmount; // <--- Add this
   final DateTime createdAt;
   final List<OrderItem> items;
 
@@ -39,6 +40,7 @@ class Order {
     required this.tableNumber,
     required this.paymentMethod,
     required this.status,
+    required this.totalAmount, // <--- Add this
     required this.createdAt,
     required this.items,
   });
@@ -50,7 +52,7 @@ class Order {
     if (rawStatus is int) {
       switch (rawStatus) {
         case 0:
-          statusString = 'Pending';
+          statusString = 'PendingPayment';
           break;
         case 1:
           statusString = 'Preparing';
@@ -68,7 +70,6 @@ class Order {
       statusString = rawStatus?.toString() ?? 'Preparing';
     }
 
-    // C# serializes OrderItems as 'orderItems' (camelCase)
     var rawItems = json['orderItems'] ?? json['items'] as List? ?? [];
     List<OrderItem> parsedItems = (rawItems as List)
         .map((i) => OrderItem.fromJson(i as Map<String, dynamic>))
@@ -79,6 +80,8 @@ class Order {
       tableNumber: json['tableNumber'] ?? 1,
       paymentMethod: json['paymentMethod'] ?? 0,
       status: statusString,
+      // Safely parse totalAmount if sent by backend, otherwise default to 0.0
+      totalAmount: (json['totalAmount'] as num?)?.toDouble() ?? 0.0,
       createdAt: json['createdAt'] != null
           ? DateTime.parse(json['createdAt'])
           : DateTime.now(),

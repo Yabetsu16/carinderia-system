@@ -179,7 +179,9 @@ class _MenuScreenState extends State<MenuScreen> {
         builder: (ctx) => AlertDialog(
           title: const Text('Order Placed Successfully!'),
           content: Text(
-            'Table #$_tableNumber order has been sent straight to the kitchen.',
+            _paymentMethod == 1
+                ? 'QR Order placed! Please show your payment confirmation to the cashier so it can be sent to the kitchen.'
+                : 'Table #$_tableNumber order has been sent straight to the kitchen.',
           ),
           actions: [
             TextButton(
@@ -190,14 +192,6 @@ class _MenuScreenState extends State<MenuScreen> {
               child: const Text('OK'),
             ),
           ],
-        ),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Failed to submit order. Please check backend connection.',
-          ),
         ),
       );
     }

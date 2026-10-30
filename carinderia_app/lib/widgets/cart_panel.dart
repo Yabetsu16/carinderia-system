@@ -25,6 +25,84 @@ class CartPanel extends StatelessWidget {
     required this.onSubmitOrder,
   });
 
+  void _showQrPaymentDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text(
+          'Scan QR Code to Pay',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        content: SizedBox(
+          width: 320,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Total Amount: ₱${cartTotal.toStringAsFixed(2)}',
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.green,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                width: 240,
+                height: 240,
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey.shade300),
+                  borderRadius: BorderRadius.circular(12),
+                  color: Colors.white,
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.asset(
+                    'assets/images/my_qr_code.png',
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Please scan using your e-wallet and show the payment confirmation to the counter staff.',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey,
+                  fontStyle: FontStyle.italic,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+        actionsAlignment: MainAxisAlignment.spaceBetween,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel', style: TextStyle(color: Colors.red)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.deepOrange),
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              onSubmitOrder(); // Submits order to backend
+            },
+            child: const Text(
+              'Place Order',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -71,18 +149,14 @@ class CartPanel extends StatelessWidget {
                   ),
           ),
           const Divider(),
-
-          // Total Amount Display
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 12.0),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Expanded(
-                  child: Text(
-                    'Total Amount:',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
+                const Text(
+                  'Total Amount:',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 Text(
                   '₱${cartTotal.toStringAsFixed(2)}',
@@ -95,8 +169,6 @@ class CartPanel extends StatelessWidget {
               ],
             ),
           ),
-
-          // Clean Payment Method Selector (Fixed overflow & duplication)
           Row(
             children: [
               Expanded(
@@ -118,18 +190,28 @@ class CartPanel extends StatelessWidget {
           ),
           const SizedBox(height: 15),
 
-          // Place Order Button
+          // Dynamic Action Button
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.deepOrange,
               padding: const EdgeInsets.all(16),
             ),
-            onPressed: (isSubmitting || cart.isEmpty) ? null : onSubmitOrder,
+            onPressed: (isSubmitting || cart.isEmpty)
+                ? null
+                : () {
+                    if (paymentMethod == 1) {
+                      _showQrPaymentDialog(context);
+                    } else {
+                      onSubmitOrder();
+                    }
+                  },
             child: isSubmitting
                 ? const CircularProgressIndicator(color: Colors.white)
-                : const Text(
-                    'Place Order (Send to Kitchen)',
-                    style: TextStyle(fontSize: 16, color: Colors.white),
+                : Text(
+                    paymentMethod == 1
+                        ? 'Pay with QR Code'
+                        : 'Place Order (Send to Kitchen)',
+                    style: const TextStyle(fontSize: 16, color: Colors.white),
                   ),
           ),
         ],

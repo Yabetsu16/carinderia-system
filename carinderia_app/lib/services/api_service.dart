@@ -111,4 +111,32 @@ class ApiService {
       return [];
     }
   }
+
+  // Fetch orders specifically waiting for payment confirmation
+  Future<List<Order>> getPendingPaymentOrders() async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/order?status=0'));
+      if (response.statusCode == 200) {
+        List<dynamic> body = jsonDecode(response.body);
+        return body.map((json) => Order.fromJson(json)).toList();
+      }
+    } catch (e) {
+      debugPrint('Error fetching pending payments: $e');
+    }
+    return [];
+  }
+
+  // Confirm QR payment (changes status from PendingPayment -> Preparing)
+  Future<bool> confirmPayment(int orderId) async {
+    try {
+      final response = await http.patch(
+        Uri.parse('$baseUrl/order/$orderId/confirm-payment'),
+        headers: {'Content-Type': 'application/json'},
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint('Error confirming payment: $e');
+      return false;
+    }
+  }
 }

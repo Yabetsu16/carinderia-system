@@ -35,19 +35,19 @@ namespace Carinderia.API.Controllers
             {
                 TableNumber = orderDto.TableNumber,
                 PaymentMethod = orderDto.PaymentMethod,
-                Status = OrderStatus.Preparing,
+                // PaymentMethod 1 (QR Code) starts as PendingPayment; Cash starts as Preparing
+                Status = orderDto.PaymentMethod == PaymentMethod.QRCode
+                    ? OrderStatus.PendingPayment
+                    : OrderStatus.Preparing,
                 CreatedAt = DateTime.UtcNow
             };
 
             decimal totalAmount = 0;
-
             foreach (var itemDto in orderDto.Items)
             {
                 var menuItem = await _context.MenuItems.FindAsync(itemDto.MenuItemId);
                 if (menuItem == null || !menuItem.IsAvailableToday)
-                {
-                    return BadRequest(new { message = $"Menu item with ID {itemDto.MenuItemId} is not available." });
-                }
+                    return BadRequest(new { message = $"Menu item ID {itemDto.MenuItemId} is unavailable." });
 
                 var orderItem = new OrderItem
                 {
@@ -56,13 +56,11 @@ namespace Carinderia.API.Controllers
                     UnitPrice = menuItem.Price,
                     SpecialInstruction = itemDto.SpecialInstruction
                 };
-
                 totalAmount += menuItem.Price * itemDto.Quantity;
                 order.OrderItems.Add(orderItem);
             }
 
             order.TotalAmount = totalAmount;
-
             _context.Orders.Add(order);
             await _context.SaveChangesAsync();
 
@@ -70,7 +68,7 @@ namespace Carinderia.API.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Order>>> GetAllOrders([FromQuery] OrderStatus? status, [FromQuery] bool includeArchived = false)
+        public async Task<ActionResult<IEnumerable<Order>>> GetAllOrders([FromQuery] int? status, [FromQuery] bool includeArchived = false)
         {
             var query = _context.Orders
                 .Include(o => o.OrderItems)
@@ -84,7 +82,13 @@ namespace Carinderia.API.Controllers
 
             if (status.HasValue)
             {
-                query = query.Where(o => o.Status == status.Value);
+                // Explicitly filter by the integer value of the OrderStatus enum
+                query = query.Where(o => (int)o.Status == status.Value);
+            }
+            else
+            {
+                // Default behavior for KDS kitchen board (excludes pending payments)
+                query = query.Where(o => o.Status >= OrderStatus.Preparing);
             }
 
             var orders = await query.OrderByDescending(o => o.CreatedAt).ToListAsync();
@@ -115,6 +119,18 @@ namespace Carinderia.API.Controllers
                 return NotFound();
 
             return Ok(order);
+        }
+
+        [HttpPatch("{id}/confirm-payment")]
+        public async Task<IActionResult> ConfirmPayment(int id)
+        {
+            var order = await _context.Orders.FindAsync(id);
+            if (order == null) return NotFound();
+
+            order.Status = OrderStatus.Preparing; // Sends order straight to the kitchen
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Payment confirmed. Order sent to kitchen." });
         }
 
         [HttpPatch("{id}/status")]
