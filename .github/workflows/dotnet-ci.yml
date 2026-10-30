@@ -19,10 +19,10 @@ jobs:
               with:
                   dotnet-version: "10.0.x"
             - name: Restore Dependencies
-              run: dotnet restore Carinderia.sln
+              run: dotnet restore Carinderia.slnx
 
             - name: Build Solution
-              run: dotnet build Carinderia.sln --configuration Release --no-restore
+              run: dotnet build Carinderia.slnx --configuration Release --no-restore
 
             - name: Run xUnit Unit Tests
-              run: dotnet test Carinderia.sln --configuration Release --no-build --verbosity normal
+              run: dotnet test Carinderia.slnx --configuration Release --no-build --verbosity normal
