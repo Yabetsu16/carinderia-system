@@ -67,7 +67,7 @@ class CartPanel extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               const Text(
-                'Please scan using your e-wallet and show the payment confirmation to the counter staff.',
+                'Please scan using your e-wallet and wait for the counter staff to confirm your payment.',
                 style: TextStyle(
                   fontSize: 12,
                   color: Colors.grey,
