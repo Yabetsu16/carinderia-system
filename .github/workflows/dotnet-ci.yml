@@ -1,0 +1,28 @@
+name: .NET API CI/CD Pipeline
+
+on:
+    push:
+        branches: ["master", "main"]
+    pull_request:
+        branches: ["master", "main"]
+
+jobs:
+    build-and-test:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout Repository
+              uses: actions/checkout@v4
+
+            - name: Setup .NET SDK
+              uses: actions/setup-dotnet@v4
+              with:
+                  dotnet-version: "10.0.x"
+            - name: Restore Dependencies
+              run: dotnet restore Carinderia.sln
+
+            - name: Build Solution
+              run: dotnet build Carinderia.sln --configuration Release --no-restore
+
+            - name: Run xUnit Unit Tests
+              run: dotnet test Carinderia.sln --configuration Release --no-build --verbosity normal
