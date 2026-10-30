@@ -39,6 +39,29 @@ class Order {
   });
 
   factory Order.fromJson(Map<String, dynamic> json) {
+    var rawStatus = json['status'];
+    String statusString;
+
+    if (rawStatus is int) {
+      switch (rawStatus) {
+        case 0:
+          statusString = 'Pending';
+          break;
+        case 1:
+          statusString = 'Preparing';
+          break;
+        case 2:
+          statusString = 'Ready';
+          break;
+        case 3:
+          statusString = 'Completed';
+          break;
+        default:
+          statusString = 'Unknown';
+      }
+    } else {
+      statusString = rawStatus?.toString() ?? 'Preparing';
+    }
     var rawItems = json['items'] as List? ?? [];
     List<OrderItem> parsedItems = rawItems
         .map((i) => OrderItem.fromJson(i))
@@ -48,7 +71,7 @@ class Order {
       id: json['id'] ?? 0,
       tableNumber: json['tableNumber'] ?? 1,
       paymentMethod: json['paymentMethod'] ?? 0,
-      status: json['status'] ?? 'Pending',
+      status: statusString,
       createdAt: json['createdAt'] != null
           ? DateTime.parse(json['createdAt'])
           : DateTime.now(),

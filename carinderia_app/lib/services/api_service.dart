@@ -52,7 +52,7 @@ class ApiService {
 
   Future<List<Order>> getActiveKitchenOrders() async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/orders/kitchen'));
+      final response = await http.get(Uri.parse('$baseUrl/order'));
       if (response.statusCode == 200) {
         List<dynamic> body = jsonDecode(response.body);
         return body.map((dynamic item) => Order.fromJson(item)).toList();
@@ -65,12 +65,12 @@ class ApiService {
     }
   }
 
-  Future<bool> updateOrderStatus(int orderId, String newStatus) async {
+  Future<bool> updateOrderStatus(int orderId, int newStatusInt) async {
     try {
-      final response = await http.put(
-        Uri.parse('$baseUrl/orders/$orderId/status'),
+      final response = await http.patch(
+        Uri.parse('$baseUrl/order/$orderId/status'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'status': newStatus}),
+        body: jsonEncode({'status': newStatusInt}),
       );
       return response.statusCode == 200 || response.statusCode == 204;
     } catch (e) {
