@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Carinderia.API/Carinderia.API.csproj" />
+  <Project Path="Carinderia.Tests/Carinderia.Tests.csproj" />
+</Solution>
