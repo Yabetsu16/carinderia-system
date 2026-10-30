@@ -93,5 +93,59 @@ namespace Carinderia.Tests
             Assert.NotNull(updatedOrderInDb);
             Assert.Equal(OrderStatus.ReadyForPickup, updatedOrderInDb.Status);
         }
+
+        [Fact]
+        public async Task PlaceOrder_QRCodePayment_SetsStatusToPendingPayment()
+        {
+            using var context = GetInMemoryDbContext();
+            var controller = new OrderController(context);
+
+            var orderDto = new CreateOrderDto
+            {
+                PaymentMethod = PaymentMethod.QRCode,
+                Items = new List<CreateOrderItemDto>
+                {
+                    new CreateOrderItemDto
+                    {
+                        MenuItemId = 1,
+                        Quantity = 1
+                    }
+                }
+            };
+
+            var result = await controller.PlaceOrder(3, orderDto);
+
+            var actionResult = Assert.IsType<CreatedAtActionResult>(result.Result);
+            var createdOrder = Assert.IsType<Order>(actionResult.Value);
+
+            Assert.Equal(3, createdOrder.TableNumber);
+            Assert.Equal(OrderStatus.PendingPayment, createdOrder.Status);
+        }
+
+        [Fact]
+        public async Task ConfirmPayment_ValidOrderId_UpdatesStatusToPreparing()
+        {
+            using var context = GetInMemoryDbContext();
+            var order = new Order
+            {
+                Id = 20,
+                TableNumber = 1,
+                PaymentMethod = PaymentMethod.QRCode,
+                Status = OrderStatus.PendingPayment,
+                TotalAmount = 70
+            };
+
+            context.Orders.Add(order);
+            await context.SaveChangesAsync();
+
+            var controller = new OrderController(context);
+
+            var result = await controller.ConfirmPayment(20);
+
+            Assert.IsType<OkObjectResult>(result);
+            var updatedOrder = await context.Orders.FindAsync(20);
+            Assert.NotNull(updatedOrder);
+            Assert.Equal(OrderStatus.Preparing, updatedOrder.Status);
+        }
     }
 }
