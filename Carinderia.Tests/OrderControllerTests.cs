@@ -41,7 +41,6 @@ namespace Carinderia.Tests
 
             var orderDto = new CreateOrderDto
             {
-                TableNumber = 5,
                 PaymentMethod = PaymentMethod.Cash,
                 Items = new List<CreateOrderItemDto>
                 {
@@ -54,12 +53,12 @@ namespace Carinderia.Tests
                 }
             };
 
-            var result = await controller.PlaceOrder(orderDto);
+            var result = await controller.PlaceOrder(1, orderDto);
 
             var actionResult = Assert.IsType<CreatedAtActionResult>(result.Result);
             var createdOrder = Assert.IsType<Order>(actionResult.Value);
 
-            Assert.Equal(5, createdOrder.TableNumber);
+            Assert.Equal(1, createdOrder.TableNumber);
             Assert.Equal(OrderStatus.Preparing, createdOrder.Status);
             Assert.Equal(140, createdOrder.TotalAmount);
             Assert.Single(createdOrder.OrderItems);
