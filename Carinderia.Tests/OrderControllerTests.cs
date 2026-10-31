@@ -194,15 +194,15 @@ namespace Carinderia.Tests
             context.Orders.Add(order);
             await context.SaveChangesAsync();
 
-            // Mock SignalR Hub Context and Clients Proxy
+            // Mock SignalR Hub Context and Client Proxies for Table group and Kitchen group
             var mockHubContext = new Mock<IHubContext<OrderHub>>();
             var mockClients = new Mock<IHubClients>();
             var mockGroupProxy = new Mock<IClientProxy>();
-            var mockAllProxy = new Mock<IClientProxy>(); // <-- Add proxy for All clients
+            var mockKitchenProxy = new Mock<IClientProxy>();
 
             mockHubContext.Setup(h => h.Clients).Returns(mockClients.Object);
             mockClients.Setup(c => c.Group("Table_5")).Returns(mockGroupProxy.Object);
-            mockClients.Setup(c => c.All).Returns(mockAllProxy.Object); // <-- Setup All clients mock
+            mockClients.Setup(c => c.Group("Kitchen")).Returns(mockKitchenProxy.Object);
 
             var controller = new OrderController(context, mockHubContext.Object);
             var updateDto = new UpdateOrderStatusDto
@@ -212,7 +212,7 @@ namespace Carinderia.Tests
 
             var result = await controller.UpdateOrderStatus(30, updateDto);
 
-            // Assert that the notification was sent to both the specific group and All clients
+            // Assert that the notification was sent to both the specific table group and the kitchen group
             Assert.IsType<OkObjectResult>(result);
 
             mockGroupProxy.Verify(
@@ -222,7 +222,7 @@ namespace Carinderia.Tests
                     default),
                 Times.Once);
 
-            mockAllProxy.Verify(
+            mockKitchenProxy.Verify(
                 client => client.SendCoreAsync(
                     "ReceiveOrderUpdate",
                     It.Is<object[]>(o => o.Length == 1 && ((Order)o[0]).Id == 30),
