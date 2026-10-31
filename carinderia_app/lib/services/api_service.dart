@@ -12,6 +12,9 @@ class ApiService {
   // Use 'http://10.0.2.2:5113' if running on an Android Emulator.
   static const String baseUrl = 'http://localhost:5113/api';
 
+  // Get the root server URL (stripping '/api' from baseUrl)
+  static String get serverRootUrl => baseUrl.replaceAll('/api', '');
+
   Future<List<Category>> getActiveMenu() async {
     try {
       final response = await http.get(Uri.parse('$baseUrl/menu'));

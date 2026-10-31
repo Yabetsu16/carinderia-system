@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../models/order.dart';
 import '../services/api_service.dart';
+import '../services/signalr_service.dart';
 import '../widgets/order_card.dart';
 
 class KitchenScreen extends StatefulWidget {
@@ -15,6 +16,7 @@ class KitchenScreen extends StatefulWidget {
 
 class _KitchenScreenState extends State<KitchenScreen> {
   final ApiService _apiService = ApiService();
+  late SignalRService _signalRService;
   List<Order> _orders = [];
   bool _isLoading = true;
   Timer? _pollingTimer;
@@ -23,25 +25,43 @@ class _KitchenScreenState extends State<KitchenScreen> {
   void initState() {
     super.initState();
     _fetchOrders();
-    // Poll every 10 seconds for real-time kitchen updates from MS SQL
-    _pollingTimer = Timer.periodic(
-      const Duration(seconds: 10),
-      (_) => _fetchOrders(),
-    );
+    _initSignalR();
+
+    _pollingTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
+      _fetchOrders(isBackgroundRefresh: true);
+    });
   }
 
   @override
   void dispose() {
+    // 4. Always cancel the timer and disconnect SignalR when leaving the screen to prevent memory leaks
     _pollingTimer?.cancel();
+    _signalRService.disconnect();
     super.dispose();
   }
 
-  Future<void> _fetchOrders() async {
+  Future<void> _initSignalR() async {
+    _signalRService = SignalRService();
+
+    await _signalRService.connect(
+      ApiService.serverRootUrl,
+      onOrderUpdate: (arguments) {
+        debugPrint("SignalR RAW callback fired! Arguments: $arguments");
+        if (mounted) {
+          _fetchOrders();
+        }
+      },
+    );
+  }
+
+  Future<void> _fetchOrders({bool isBackgroundRefresh = false}) async {
     final orders = await _apiService.getActiveKitchenOrders();
     if (!mounted) return;
     setState(() {
       _orders = orders;
-      _isLoading = false;
+      if (!isBackgroundRefresh) {
+        _isLoading = false;
+      }
     });
   }
 
@@ -49,7 +69,7 @@ class _KitchenScreenState extends State<KitchenScreen> {
     if (newStatus == 'Archived') {
       bool success = await _apiService.archiveOrder(orderId);
       if (success) {
-        _fetchOrders(); // Removes it from the active KDS list
+        _fetchOrders();
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Order archived successfully.')),
@@ -63,7 +83,6 @@ class _KitchenScreenState extends State<KitchenScreen> {
       return;
     }
 
-    // Handle standard status changes (Preparing, Ready, Completed)
     int statusInt = 0;
     if (newStatus == 'Preparing') {
       statusInt = 1;
@@ -76,7 +95,7 @@ class _KitchenScreenState extends State<KitchenScreen> {
     bool success = await _apiService.updateOrderStatus(orderId, statusInt);
 
     if (success) {
-      _fetchOrders(); // Refresh list immediately
+      _fetchOrders();
     } else {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -94,7 +113,7 @@ class _KitchenScreenState extends State<KitchenScreen> {
           width: 500,
           height: 400,
           child: FutureBuilder<List<Order>>(
-            future: _apiService.getOrderHistory(), // This fetches the completed/archived list from your backend
+            future: _apiService.getOrderHistory(),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());

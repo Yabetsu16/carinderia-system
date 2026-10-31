@@ -5,9 +5,12 @@ using System.Threading.Tasks;
 using Carinderia.API.Controllers;
 using Carinderia.API.Data;
 using Carinderia.API.DTO;
+using Carinderia.API.Hubs;
 using Carinderia.API.Models;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
+using Moq;
 using Xunit;
 
 namespace Carinderia.Tests
@@ -37,7 +40,14 @@ namespace Carinderia.Tests
         public async Task PlaceOrder_ValidDto_CreatesOrderAndSetsStatusToPreparing()
         {
             using var context = GetInMemoryDbContext();
-            var controller = new OrderController(context);
+            // Create mocks for SignalR hub context
+            var mockHubContext = new Mock<IHubContext<OrderHub>>();
+            var mockClients = new Mock<IHubClients>();
+            var mockClientProxy = new Mock<IClientProxy>();
+            var mockAllProxy = new Mock<IClientProxy>();
+
+            var controller = new OrderController(context, mockHubContext.Object);
+
 
             var orderDto = new CreateOrderDto
             {
@@ -68,6 +78,13 @@ namespace Carinderia.Tests
         public async Task UpdateOrderStatus_ValidId_UpdatesStatusSuccessfully()
         {
             using var context = GetInMemoryDbContext();
+
+            // Create mocks for SignalR hub context
+            var mockHubContext = new Mock<IHubContext<OrderHub>>();
+            var mockClients = new Mock<IHubClients>();
+            var mockClientProxy = new Mock<IClientProxy>();
+            var mockAllProxy = new Mock<IClientProxy>();
+
             var order = new Order
             {
                 Id = 10,
@@ -80,7 +97,8 @@ namespace Carinderia.Tests
             context.Orders.Add(order);
             await context.SaveChangesAsync();
 
-            var controller = new OrderController(context);
+            var controller = new OrderController(context, mockHubContext.Object);
+
             var updateDto = new UpdateOrderStatusDto
             {
                 Status = OrderStatus.ReadyForPickup
@@ -98,7 +116,13 @@ namespace Carinderia.Tests
         public async Task PlaceOrder_QRCodePayment_SetsStatusToPendingPayment()
         {
             using var context = GetInMemoryDbContext();
-            var controller = new OrderController(context);
+            // Create mocks for SignalR hub context
+            var mockHubContext = new Mock<IHubContext<OrderHub>>();
+            var mockClients = new Mock<IHubClients>();
+            var mockClientProxy = new Mock<IClientProxy>();
+            var mockAllProxy = new Mock<IClientProxy>();
+
+            var controller = new OrderController(context, mockHubContext.Object);
 
             var orderDto = new CreateOrderDto
             {
@@ -126,6 +150,12 @@ namespace Carinderia.Tests
         public async Task ConfirmPayment_ValidOrderId_UpdatesStatusToPreparing()
         {
             using var context = GetInMemoryDbContext();
+            // Create mocks for SignalR hub context
+            var mockHubContext = new Mock<IHubContext<OrderHub>>();
+            var mockClients = new Mock<IHubClients>();
+            var mockClientProxy = new Mock<IClientProxy>();
+            var mockAllProxy = new Mock<IClientProxy>();
+
             var order = new Order
             {
                 Id = 20,
@@ -138,7 +168,7 @@ namespace Carinderia.Tests
             context.Orders.Add(order);
             await context.SaveChangesAsync();
 
-            var controller = new OrderController(context);
+            var controller = new OrderController(context, mockHubContext.Object);
 
             var result = await controller.ConfirmPayment(20);
 
@@ -146,6 +176,58 @@ namespace Carinderia.Tests
             var updatedOrder = await context.Orders.FindAsync(20);
             Assert.NotNull(updatedOrder);
             Assert.Equal(OrderStatus.Preparing, updatedOrder.Status);
+        }
+
+        [Fact]
+        public async Task UpdateOrderStatus_SendsSignalRNotificationToSpecificTableGroup()
+        {
+            using var context = GetInMemoryDbContext();
+            var order = new Order
+            {
+                Id = 30,
+                TableNumber = 5,
+                PaymentMethod = PaymentMethod.Cash,
+                Status = OrderStatus.Preparing,
+                TotalAmount = 150
+            };
+
+            context.Orders.Add(order);
+            await context.SaveChangesAsync();
+
+            // Mock SignalR Hub Context and Clients Proxy
+            var mockHubContext = new Mock<IHubContext<OrderHub>>();
+            var mockClients = new Mock<IHubClients>();
+            var mockGroupProxy = new Mock<IClientProxy>();
+            var mockAllProxy = new Mock<IClientProxy>(); // <-- Add proxy for All clients
+
+            mockHubContext.Setup(h => h.Clients).Returns(mockClients.Object);
+            mockClients.Setup(c => c.Group("Table_5")).Returns(mockGroupProxy.Object);
+            mockClients.Setup(c => c.All).Returns(mockAllProxy.Object); // <-- Setup All clients mock
+
+            var controller = new OrderController(context, mockHubContext.Object);
+            var updateDto = new UpdateOrderStatusDto
+            {
+                Status = OrderStatus.ReadyForPickup
+            };
+
+            var result = await controller.UpdateOrderStatus(30, updateDto);
+
+            // Assert that the notification was sent to both the specific group and All clients
+            Assert.IsType<OkObjectResult>(result);
+
+            mockGroupProxy.Verify(
+                client => client.SendCoreAsync(
+                    "ReceiveOrderUpdate",
+                    It.Is<object[]>(o => o.Length == 1 && ((Order)o[0]).Id == 30),
+                    default),
+                Times.Once);
+
+            mockAllProxy.Verify(
+                client => client.SendCoreAsync(
+                    "ReceiveOrderUpdate",
+                    It.Is<object[]>(o => o.Length == 1 && ((Order)o[0]).Id == 30),
+                    default),
+                Times.Once);
         }
     }
 }

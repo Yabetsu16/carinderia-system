@@ -1,4 +1,5 @@
 using Carinderia.API.Data;
+using Carinderia.API.Hubs;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -7,9 +8,11 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFlutterWeb", policy =>
     {
-        policy.AllowAnyOrigin()
+        policy
         .AllowAnyHeader()
-        .AllowAnyMethod();
+        .AllowAnyMethod()
+        .SetIsOriginAllowed(_ => true)
+        .AllowCredentials();
     });
 });
 
@@ -27,6 +30,8 @@ builder.Services.AddDbContext<AppDbContext>(
         builder.Configuration.GetConnectionString("DefaultConnection")
     ));
 
+builder.Services.AddSignalR();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -40,6 +45,7 @@ app.UseHttpsRedirection();
 app.UseCors("AllowFlutterWeb");
 app.UseAuthorization();
 app.MapControllers();
+app.MapHub<OrderHub>("/orderHub");
 
 // Seed initial data
 using (var scope = app.Services.CreateScope())

@@ -8,6 +8,7 @@ import '../models/menu_item.dart';
 import '../models/cart_item.dart';
 import '../models/order.dart';
 import '../services/api_service.dart';
+import '../services/signalr_service.dart';
 import '../widgets/menu_grid_view.dart';
 import '../widgets/cart_panel.dart';
 
@@ -25,104 +26,58 @@ class _MenuScreenState extends State<MenuScreen> {
 
   // Local Cart State
   final Map<int, CartItem> _cart = {};
-  final int _tableNumber = 1;
   int _paymentMethod = 0; // 0 = Cash, 1 = QRCode
   bool _isSubmitting = false;
 
-  // Add inside _MenuScreenState
-  Timer? _statusPollingTimer;
+  // SignalR & Active Orders State
+  late SignalRService _signalRService;
   List<Order> _myActiveOrders = [];
-  final Map<int, String> _lastKnownStatuses = {};
 
   @override
   void initState() {
     super.initState();
     _menuFuture = _apiService.getActiveMenu();
-    _startOrderPolling();
+    _initSignalR();
+    _fetchInitialOrders();
   }
 
   @override
   void dispose() {
-    _statusPollingTimer?.cancel();
+    _signalRService.disconnect();
     super.dispose();
   }
 
-  void _startOrderPolling() {
-    _statusPollingTimer = Timer.periodic(const Duration(seconds: 5), (
-      timer,
-    ) async {
-      try {
-        List<Order> orders = await _apiService.getActiveKitchenOrders();
+  Future<void> _initSignalR() async {
+    _signalRService = SignalRService();
 
-        var tableOrders = orders
-            .where((o) => o.tableNumber == _tableNumber)
-            .toList();
-
-        for (var order in tableOrders) {
-          String oldStatus = _lastKnownStatuses[order.id] ?? '';
-
-          if (oldStatus != order.status && order.status == 'Ready') {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    '🎉 Order #${order.id} for Table #${order.tableNumber} is READY!',
-                  ),
-                  backgroundColor: Colors.green,
-                  duration: const Duration(seconds: 4),
-                ),
-              );
-            }
-          }
-          _lastKnownStatuses[order.id] == order.status;
+    // Connect and bind the listener simultaneously before the handshake finishes
+    await _signalRService.connect(
+      ApiService.serverRootUrl,
+      onOrderUpdate: (arguments) {
+        debugPrint("SignalR RAW callback fired! Arguments: $arguments");
+        if (mounted) {
+          _fetchInitialOrders(); // Instantly refresh UI when broadcast hits
         }
-
-        setState(() {
-          _myActiveOrders = tableOrders;
-        });
-      } catch (e) {
-        debugPrint('Error polling order statuses: $e');
-      }
-    });
+      },
+    );
   }
 
-  void _showActiveOrdersDialog() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Table #$_tableNumber Orders'),
-        content: SizedBox(
-          width: 400,
-          child: _myActiveOrders.isEmpty
-              ? const Text('No active orders for this table.')
-              : ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: _myActiveOrders.length,
-                  itemBuilder: (context, index) {
-                    final order = _myActiveOrders[index];
-                    return ListTile(
-                      title: Text(
-                        'Order #${order.id} ₱${order.items.length} items',
-                      ),
-                      subtitle: Text('Status: ${order.status}'),
-                      trailing: Chip(
-                        label: Text(order.status),
-                        backgroundColor: order.status == 'Ready'
-                            ? Colors.green[800]
-                            : Colors.orange[800],
-                      ),
-                    );
-                  },
-                ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
+  Future<void> _fetchInitialOrders() async {
+    try {
+      List<Order> orders = await _apiService.getActiveKitchenOrders();
+      var tableOrders = orders
+          .where(
+            (o) =>
+                o.tableNumber == widget.tableNumber && o.status != 'Completed',
+          )
+          .toList();
+
+      setState(() {
+        _myActiveOrders = tableOrders;
+      });
+    } catch (e) {
+      debugPrint('Error fetching table orders: $e');
+    }
   }
 
   void _addToCart(MenuItem item) {
@@ -181,14 +136,15 @@ class _MenuScreenState extends State<MenuScreen> {
           title: const Text('Order Placed Successfully!'),
           content: Text(
             _paymentMethod == 1
-                ? 'QR Order placed! Please show your payment confirmation to the cashier so it can be sent to the kitchen.'
-                : 'Table #$_tableNumber order has been sent straight to the kitchen.',
+                ? 'QR Order placed! Please show your payment confirmation to the cashier.'
+                : 'Table #${widget.tableNumber} order has been sent straight to the kitchen.',
           ),
           actions: [
             TextButton(
               onPressed: () {
                 Navigator.of(ctx).pop();
                 setState(() => _cart.clear());
+                _fetchInitialOrders();
               },
               child: const Text('OK'),
             ),
@@ -198,20 +154,105 @@ class _MenuScreenState extends State<MenuScreen> {
     }
   }
 
+  // Widget to render persistent live status cards for active orders
+  Widget _buildActiveOrdersStatusWidget() {
+    if (_myActiveOrders.isEmpty) return const SizedBox.shrink();
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      margin: const EdgeInsets.all(8.0),
+      padding: const EdgeInsets.all(12.0),
+      decoration: BoxDecoration(
+        color: isDark
+            ? Colors.orange.shade900.withValues(alpha: .25)
+            : Colors.orange.shade50,
+        border: Border.all(
+          color: isDark ? Colors.orange.shade700 : Colors.orange.shade300,
+          width: 1.5,
+        ),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.access_time_filled,
+                color: isDark ? Colors.orangeAccent : Colors.deepOrange,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Live Order Status',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  color: isDark ? Colors.orangeAccent : Colors.deepOrange,
+                ),
+              ),
+            ],
+          ),
+          Divider(
+            height: 12,
+            color: isDark ? Colors.grey.shade800 : Colors.grey.shade300,
+          ),
+          ..._myActiveOrders.map((order) {
+            Color statusColor = Colors.orange;
+            String statusText = order.status;
+
+            if (order.status == 'Ready') {
+              statusColor = Colors.green.shade600;
+              statusText = '🎉 READY FOR PICKUP!';
+            } else if (order.status == 'Preparing') {
+              statusColor = Colors.blue.shade600;
+              statusText = '👨‍🍳 Preparing in Kitchen';
+            } else if (order.status == 'PendingPayment') {
+              statusColor = Colors.amber.shade800;
+              statusText = '⏳ Awaiting Cashier Payment';
+            }
+
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Order #${order.id} (${order.items.length} items)',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).textTheme.bodyMedium?.color,
+                    ),
+                  ),
+                  Chip(
+                    label: Text(
+                      statusText,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    backgroundColor: statusColor,
+                    padding: EdgeInsets.zero,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Carinderia Menu'),
-        actions: [
-          IconButton(
-            icon: const Badge(
-              label: Text('active'),
-              child: Icon(Icons.receipt_long),
-            ),
-            onPressed: () => _showActiveOrdersDialog(),
-          ),
-        ],
+        title: Text('Carinderia Menu - Table #${widget.tableNumber}'),
       ),
       body: Row(
         children: [
@@ -223,19 +264,26 @@ class _MenuScreenState extends State<MenuScreen> {
               onAddToCart: _addToCart,
             ),
           ),
-
-          // Right Side: Cart & Checkout Panel
+          // Right Side: Persistent Status Widget + Cart & Checkout Panel
           Expanded(
             flex: 2,
-            child: CartPanel(
-              cart: _cart,
-              cartTotal: _cartTotal,
-              paymentMethod: _paymentMethod,
-              isSubmitting: _isSubmitting,
-              onIncrement: _addToCart,
-              onDecrement: _removeFromCart,
-              onPaymentChanged: (val) => setState(() => _paymentMethod = val),
-              onSubmitOrder: _submitOrder,
+            child: Column(
+              children: [
+                _buildActiveOrdersStatusWidget(), // Pinned live status container
+                Expanded(
+                  child: CartPanel(
+                    cart: _cart,
+                    cartTotal: _cartTotal,
+                    paymentMethod: _paymentMethod,
+                    isSubmitting: _isSubmitting,
+                    onIncrement: _addToCart,
+                    onDecrement: _removeFromCart,
+                    onPaymentChanged: (val) =>
+                        setState(() => _paymentMethod = val),
+                    onSubmitOrder: _submitOrder,
+                  ),
+                ),
+              ],
             ),
           ),
         ],

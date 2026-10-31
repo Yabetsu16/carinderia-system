@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/order.dart';
 import '../services/api_service.dart';
+import '../services/signalr_service.dart';
 
 class CashierScreen extends StatefulWidget {
   const CashierScreen({super.key});
@@ -12,6 +13,7 @@ class CashierScreen extends StatefulWidget {
 
 class _CashierScreenState extends State<CashierScreen> {
   final ApiService _apiService = ApiService();
+  late SignalRService _signalRService;
   List<Order> _pendingOrders = [];
   bool _isLoading = true;
 
@@ -19,6 +21,28 @@ class _CashierScreenState extends State<CashierScreen> {
   void initState() {
     super.initState();
     _fetchPendingOrders();
+    _initSignalR();
+  }
+
+  @override
+  void dispose() {
+    _signalRService.disconnect();
+    super.dispose();
+  }
+
+  Future<void> _initSignalR() async {
+    _signalRService = SignalRService();
+
+    // Connect and bind the listener simultaneously before the handshake finishes
+    await _signalRService.connect(
+      ApiService.serverRootUrl,
+      onOrderUpdate: (arguments) {
+        debugPrint("SignalR RAW callback fired! Arguments: $arguments");
+        if (mounted) {
+          _fetchPendingOrders(); // Instantly refresh UI when broadcast hits
+        }
+      },
+    );
   }
 
   Future<void> _fetchPendingOrders() async {

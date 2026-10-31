@@ -5,8 +5,10 @@ using System.Linq;
 using System.Threading.Tasks;
 using Carinderia.API.Data;
 using Carinderia.API.DTO;
+using Carinderia.API.Hubs;
 using Carinderia.API.Models;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -17,13 +19,15 @@ namespace Carinderia.API.Controllers
     public class OrderController : ControllerBase
     {
         private readonly AppDbContext _context;
+        private readonly IHubContext<OrderHub>? _hubContext;
 
-        public OrderController(AppDbContext context)
+        public OrderController(AppDbContext context, IHubContext<OrderHub>? hubContext = null)
         {
             _context = context;
+            _hubContext = hubContext;
         }
 
-        [HttpPost]
+        [HttpPost("/api/{tableNumber}/order")]
         public async Task<ActionResult<Order>> PlaceOrder(int tableNumber, [FromBody] CreateOrderDto orderDto)
         {
             if (orderDto.Items == null || !orderDto.Items.Any())
@@ -63,8 +67,9 @@ namespace Carinderia.API.Controllers
             order.TotalAmount = totalAmount;
             _context.Orders.Add(order);
             await _context.SaveChangesAsync();
+            await NotifyTableAsync(tableNumber, order);
 
-            return CreatedAtAction(nameof(GetOrderById), new { id = order.Id }, order);
+            return CreatedAtAction(nameof(GetOrderById), new { id = order.Id }, order); ;
         }
 
         [HttpGet]
@@ -129,6 +134,7 @@ namespace Carinderia.API.Controllers
 
             order.Status = OrderStatus.Preparing; // Sends order straight to the kitchen
             await _context.SaveChangesAsync();
+            await NotifyTableAsync(order.TableNumber, order);
 
             return Ok(new { message = "Payment confirmed. Order sent to kitchen." });
         }
@@ -142,6 +148,7 @@ namespace Carinderia.API.Controllers
 
             order.Status = statusDto.Status;
             await _context.SaveChangesAsync();
+            await NotifyTableAsync(order.TableNumber, order);
 
             return Ok(new
             {
@@ -161,6 +168,18 @@ namespace Carinderia.API.Controllers
             await _context.SaveChangesAsync();
 
             return Ok(new { message = "Order archived successfully" });
+        }
+
+        private async Task NotifyTableAsync(int tableNumber, Order order)
+        {
+            if (_hubContext != null && _hubContext.Clients != null)
+            {
+                // 1. Notify the specific table group (for customer live status)
+                await _hubContext.Clients.Group($"Table_{tableNumber}").SendAsync("ReceiveOrderUpdate", order);
+
+                // 2. Notify the Kitchen display group globally
+                await _hubContext.Clients.Group("Kitchen").SendAsync("ReceiveOrderUpdate", order);
+            }
         }
     }
 }
