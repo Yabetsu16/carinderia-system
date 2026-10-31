@@ -64,16 +64,15 @@ class _MenuScreenState extends State<MenuScreen> {
 
   Future<void> _fetchInitialOrders() async {
     try {
-      List<Order> orders = await _apiService.getActiveKitchenOrders();
-      var tableOrders = orders
-          .where(
-            (o) =>
-                o.tableNumber == widget.tableNumber && o.status != 'Completed',
-          )
-          .toList();
+      // Fetch orders specifically for this table using the new method
+      List<Order> tableOrders = await _apiService.getTableOrders(
+        widget.tableNumber,
+      );
 
       setState(() {
-        _myActiveOrders = tableOrders;
+        _myActiveOrders = tableOrders
+            .where((o) => o.status != 'Completed')
+            .toList();
       });
     } catch (e) {
       debugPrint('Error fetching table orders: $e');

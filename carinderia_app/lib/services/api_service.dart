@@ -101,6 +101,21 @@ class ApiService {
     }
   }
 
+  Future<List<Order>> getTableOrders(int tableNumber) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/order?tableNumber=$tableNumber'),
+      );
+      if (response.statusCode == 200) {
+        List<dynamic> body = jsonDecode(response.body);
+        return body.map((dynamic item) => Order.fromJson(item)).toList();
+      }
+    } catch (e) {
+      debugPrint('Error fetching table orders: $e');
+    }
+    return [];
+  }
+
   Future<List<Order>> getOrderHistory() async {
     try {
       // Pass includeCompleted=true to fetch history

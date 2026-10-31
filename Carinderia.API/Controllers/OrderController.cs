@@ -73,7 +73,7 @@ namespace Carinderia.API.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Order>>> GetAllOrders([FromQuery] int? status, [FromQuery] bool includeArchived = false)
+        public async Task<ActionResult<IEnumerable<Order>>> GetAllOrders([FromQuery] int? status, [FromQuery] int? tableNumber, [FromQuery] bool includeArchived = false)
         {
             var query = _context.Orders
                 .Include(o => o.OrderItems)
@@ -85,15 +85,19 @@ namespace Carinderia.API.Controllers
                 query = query.Where(o => !o.IsArchived);
             }
 
+            if (tableNumber.HasValue)
+            {
+                query = query.Where(o => o.TableNumber == tableNumber.Value);
+            }
+
             if (status.HasValue)
             {
-                // Explicitly filter by the integer value of the OrderStatus enum
                 query = query.Where(o => (int)o.Status == status.Value);
             }
             else
             {
-                // Default behavior for KDS kitchen board (excludes pending payments)
-                query = query.Where(o => o.Status >= OrderStatus.Preparing);
+                // Include PendingPayment (0) up to Ready/Completed for table views
+                query = query.Where(o => o.Status >= OrderStatus.PendingPayment);
             }
 
             var orders = await query.OrderByDescending(o => o.CreatedAt).ToListAsync();
