@@ -129,7 +129,6 @@ namespace Carinderia.API.Controllers
 
             return Ok(order);
         }
-
         [HttpPatch("{id}/confirm-payment")]
         public async Task<IActionResult> ConfirmPayment(int id)
         {
@@ -138,6 +137,8 @@ namespace Carinderia.API.Controllers
 
             order.Status = OrderStatus.Preparing; // Sends order straight to the kitchen
             await _context.SaveChangesAsync();
+
+            // Broadcasts the updated order status to both the Table group and the Kitchen group
             await NotifyTableAsync(order.TableNumber, order);
 
             return Ok(new { message = "Payment confirmed. Order sent to kitchen." });
