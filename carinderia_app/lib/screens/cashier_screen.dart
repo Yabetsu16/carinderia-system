@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../models/order.dart';
@@ -16,16 +18,24 @@ class _CashierScreenState extends State<CashierScreen> {
   late SignalRService _signalRService;
   List<Order> _pendingOrders = [];
   bool _isLoading = true;
+  Timer? _pollingTimer;
 
   @override
   void initState() {
     super.initState();
     _fetchPendingOrders();
     _initSignalR();
+
+    // 3. Start a periodic timer to automatically refresh pending payments every 3 seconds
+    _pollingTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
+      _fetchPendingOrders(isBackgroundRefresh: true);
+    });
   }
 
   @override
   void dispose() {
+    // 4. Always cancel the timer and disconnect SignalR to prevent memory leaks
+    _pollingTimer?.cancel();
     _signalRService.disconnect();
     super.dispose();
   }
@@ -37,18 +47,29 @@ class _CashierScreenState extends State<CashierScreen> {
     await _signalRService.connect(
       ApiService.serverRootUrl,
       onOrderUpdate: (arguments) {
-        debugPrint("SignalR RAW callback fired! Arguments: $arguments");
+        debugPrint(
+          "SignalR RAW callback fired on CashierScreen! Arguments: $arguments",
+        );
         if (mounted) {
-          _fetchPendingOrders(); // Instantly refresh UI when broadcast hits
+          _fetchPendingOrders(
+            isBackgroundRefresh: true,
+          ); // Instantly refresh UI when broadcast hits
         }
       },
     );
+
+    // Join the Kitchen group so that new orders/updates broadcast to the cashier screen too
+    await _signalRService.joinKitchen();
   }
 
-  Future<void> _fetchPendingOrders() async {
-    setState(() => _isLoading = true);
+  Future<void> _fetchPendingOrders({bool isBackgroundRefresh = false}) async {
+    if (!isBackgroundRefresh) {
+      setState(() => _isLoading = true);
+    }
+
     final orders = await _apiService.getPendingPaymentOrders();
     if (!mounted) return;
+
     setState(() {
       _pendingOrders = orders;
       _isLoading = false;
@@ -66,7 +87,7 @@ class _CashierScreenState extends State<CashierScreen> {
           backgroundColor: Colors.green,
         ),
       );
-      _fetchPendingOrders(); // Refresh list
+      _fetchPendingOrders(); // Refresh list immediately after action
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
