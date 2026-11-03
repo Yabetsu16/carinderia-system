@@ -159,7 +159,8 @@ class OrderCard extends StatelessWidget {
                       style: TextStyle(color: Colors.white),
                     ),
                   ),
-                if (order.status.toLowerCase() == 'completed')
+                if (order.status.toLowerCase() == 'completed' ||
+                    order.status.toLowerCase() == 'cancelled')
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.grey[700],

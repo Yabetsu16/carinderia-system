@@ -371,5 +371,29 @@ void main() {
 
       expect(find.text('Order #99 - Table #5'), findsNothing);
     });
+
+    testWidgets('Archives a cancelled order', (tester) async {
+      configureTestView(tester);
+
+      apiService.orders = [createTestOrder(id: 31, status: 'Cancelled')];
+
+      await tester.pumpWidget(
+        createTestApp(apiService: apiService, signalRService: signalRService),
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(find.text('CANCELLED'), findsOneWidget);
+      expect(find.text('Archive'), findsOneWidget);
+
+      await tester.tap(find.text('Archive'));
+      await tester.pumpAndSettle();
+
+      expect(apiService.archiveOrderCallCount, 1);
+      expect(apiService.lastArchivedOrderId, 31);
+
+      expect(find.text('No active orders in the kitchen.'), findsOneWidget);
+      expect(find.text('Order archived successfully.'), findsOneWidget);
+    });
   });
 }

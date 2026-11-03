@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using System.ComponentModel.DataAnnotations;
 using Carinderia.API.Models;
 
 namespace Carinderia.API.DTO
@@ -15,7 +16,10 @@ namespace Carinderia.API.DTO
     public class CreateOrderItemDto
     {
         public int MenuItemId { get; set; }
+
+        [Range(1, int.MaxValue, ErrorMessage = "Quantity must be at least 1.")]
         public int Quantity { get; set; }
+
         public string? SpecialInstruction { get; set; }
     }
 

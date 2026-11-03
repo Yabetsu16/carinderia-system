@@ -25,9 +25,35 @@ namespace Carinderia.API.Controllers
         [HttpPost("/api/{tableNumber}/order")]
         public async Task<ActionResult<Order>> PlaceOrder(int tableNumber, [FromBody] CreateOrderDto orderDto)
         {
+            if (tableNumber <= 0)
+            {
+                return BadRequest(new
+                {
+                    message = "Table number must be greater than zero."
+                });
+            }
+
+            if (!Enum.IsDefined(orderDto.PaymentMethod))
+            {
+                return BadRequest(new
+                {
+                    message = "Invalid payment method."
+                });
+            }
+
             if (orderDto.Items == null || !orderDto.Items.Any())
             {
                 return BadRequest(new { message = "Cannot place an order with no items." });
+            }
+
+            if (orderDto.Items
+                .GroupBy(item => item.MenuItemId)
+                .Any(group => group.Count() > 1))
+            {
+                return BadRequest(new
+                {
+                    message = "Duplicate menu items are not allowed in an order."
+                });
             }
 
             var order = new Order
@@ -44,6 +70,14 @@ namespace Carinderia.API.Controllers
             decimal totalAmount = 0;
             foreach (var itemDto in orderDto.Items)
             {
+                if (itemDto.Quantity <= 0)
+                {
+                    return BadRequest(new
+                    {
+                        message = "Quantity must be greater than zero."
+                    });
+                }
+
                 var menuItem = await _context.MenuItems.FindAsync(itemDto.MenuItemId);
                 if (menuItem == null || !menuItem.IsAvailableToday)
                     return BadRequest(new { message = $"Menu item ID {itemDto.MenuItemId} is unavailable." });
@@ -80,9 +114,25 @@ namespace Carinderia.API.Controllers
                 query = query.Where(o => !o.IsArchived);
             }
 
+            if (tableNumber.HasValue && tableNumber.Value <= 0)
+            {
+                return BadRequest(new
+                {
+                    message = "Table number must be greater than zero."
+                });
+            }
+
             if (tableNumber.HasValue)
             {
                 query = query.Where(o => o.TableNumber == tableNumber.Value);
+            }
+
+            if (status.HasValue && !Enum.IsDefined(typeof(OrderStatus), status.Value))
+            {
+                return BadRequest(new
+                {
+                    message = "Invalid order status."
+                });
             }
 
             if (status.HasValue)
@@ -124,27 +174,63 @@ namespace Carinderia.API.Controllers
 
             return Ok(order);
         }
+
         [HttpPatch("{id}/confirm-payment")]
         public async Task<IActionResult> ConfirmPayment(int id)
         {
-            var order = await _context.Orders.FindAsync(id);
-            if (order == null) return NotFound();
+            var order = await _context.Orders
+                .Include(o => o.OrderItems)
+                .ThenInclude(item => item.MenuItem)
+                .FirstOrDefaultAsync(o => o.Id == id);
 
-            order.Status = OrderStatus.Preparing; // Sends order straight to the kitchen
+            if (order == null)
+                return NotFound();
+
+            if (order.PaymentMethod != PaymentMethod.QRCode ||
+                order.Status != OrderStatus.PendingPayment)
+            {
+                return BadRequest(new
+                {
+                    message = "Only QR orders with pending payment can be confirmed."
+                });
+            }
+
+            order.Status = OrderStatus.Preparing;
+
             await _context.SaveChangesAsync();
-
-            // Broadcasts the updated order status to both the Table group and the Kitchen group
             await NotifyTableAsync(order.TableNumber, order);
 
-            return Ok(new { message = "Payment confirmed. Order sent to kitchen." });
+            return Ok(new
+            {
+                message = "Payment confirmed. Order sent to kitchen."
+            });
         }
 
         [HttpPatch("{id}/status")]
         public async Task<IActionResult> UpdateOrderStatus(int id, [FromBody] UpdateOrderStatusDto statusDto)
         {
-            var order = await _context.Orders.FindAsync(id);
+            var order = await _context.Orders
+                .Include(o => o.OrderItems)
+                .ThenInclude(item => item.MenuItem)
+                .FirstOrDefaultAsync(o => o.Id == id);
 
             if (order == null) return NotFound();
+
+            if (!Enum.IsDefined(statusDto.Status))
+            {
+                return BadRequest(new
+                {
+                    message = "Invalid order status."
+                });
+            }
+
+            if (!CanTransitionStatus(order.Status, statusDto.Status))
+            {
+                return BadRequest(new
+                {
+                    message = $"Cannot change order status from {order.Status} to {statusDto.Status}."
+                });
+            }
 
             order.Status = statusDto.Status;
             await _context.SaveChangesAsync();
@@ -157,17 +243,31 @@ namespace Carinderia.API.Controllers
                 newStatus = order.Status.ToString()
             });
         }
-
         [HttpPatch("{id}/archive")]
         public async Task<IActionResult> ArchiveOrder(int id)
         {
             var order = await _context.Orders.FindAsync(id);
-            if (order == null) return NotFound();
 
-            order.IsArchived = true; // Marks it as archived so it drops off the active board
+            if (order == null)
+                return NotFound();
+
+            if (order.Status != OrderStatus.Completed &&
+                order.Status != OrderStatus.Cancelled)
+            {
+                return BadRequest(new
+                {
+                    message = "Only completed or cancelled orders can be archived."
+                });
+            }
+
+            order.IsArchived = true;
+
             await _context.SaveChangesAsync();
 
-            return Ok(new { message = "Order archived successfully" });
+            return Ok(new
+            {
+                message = "Order archived successfully"
+            });
         }
 
         private async Task NotifyTableAsync(int tableNumber, Order order)
@@ -203,6 +303,25 @@ namespace Carinderia.API.Controllers
 
             Console.WriteLine(
                 $"[SignalR] Order #{order.Id} notification sent to Table_{tableNumber} and Kitchen");
+        }
+
+        private static bool CanTransitionStatus(
+            OrderStatus currentStatus,
+            OrderStatus newStatus)
+        {
+            return currentStatus switch
+            {
+                OrderStatus.PendingPayment =>
+                    newStatus is OrderStatus.Preparing or OrderStatus.Cancelled,
+
+                OrderStatus.Preparing =>
+                    newStatus is OrderStatus.ReadyForPickup or OrderStatus.Cancelled,
+
+                OrderStatus.ReadyForPickup =>
+                    newStatus is OrderStatus.Completed or OrderStatus.Cancelled,
+
+                _ => false
+            };
         }
     }
 }
