@@ -5,21 +5,28 @@ import '../services/api_service.dart';
 import '../services/signalr_service.dart';
 
 class CashierScreen extends StatefulWidget {
-  const CashierScreen({super.key});
+  final ApiService? apiService;
+  final SignalRService? signalRService;
+
+  const CashierScreen({super.key, this.apiService, this.signalRService});
 
   @override
   State<CashierScreen> createState() => _CashierScreenState();
 }
 
 class _CashierScreenState extends State<CashierScreen> {
-  final ApiService _apiService = ApiService();
-  late SignalRService _signalRService;
+  late final ApiService _apiService;
+  late final SignalRService _signalRService;
   List<Order> _pendingOrders = [];
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
+
+    _apiService = widget.apiService ?? ApiService();
+    _signalRService = widget.signalRService ?? SignalRService();
+
     _fetchPendingOrders();
     _initSignalR();
   }
@@ -31,8 +38,6 @@ class _CashierScreenState extends State<CashierScreen> {
   }
 
   Future<void> _initSignalR() async {
-    _signalRService = SignalRService();
-
     await _signalRService.connect(
       ApiService.serverRootUrl,
       onOrderUpdate: (arguments) {
