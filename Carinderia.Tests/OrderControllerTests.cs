@@ -248,5 +248,90 @@ namespace Carinderia.Tests
                     default),
                 Times.Once);
         }
+
+        [Fact]
+        public async Task PlaceOrder_EmptyItems_ReturnsBadRequest()
+        {
+            using var context = GetInMemoryDbContext();
+
+            var controller = new OrderController(context);
+
+            var orderDto = new CreateOrderDto
+            {
+                PaymentMethod = PaymentMethod.Cash,
+                Items = new List<CreateOrderItemDto>()
+            };
+
+            var result = await controller.PlaceOrder(1, orderDto);
+
+            Assert.IsType<BadRequestObjectResult>(result.Result);
+            Assert.Empty(context.Orders);
+        }
+
+        [Fact]
+        public async Task PlaceOrder_UnavailableMenuItem_ReturnsBadRequest()
+        {
+            using var context = GetInMemoryDbContext();
+
+            var unavailableMenuItem = new MenuItem
+            {
+                Id = 2,
+                Name = "Unavailable Item",
+                Price = 100,
+                IsAvailableToday = false
+            };
+
+            context.MenuItems.Add(unavailableMenuItem);
+            await context.SaveChangesAsync();
+
+            var controller = new OrderController(context);
+
+            var orderDto = new CreateOrderDto
+            {
+                PaymentMethod = PaymentMethod.Cash,
+                Items = new List<CreateOrderItemDto>
+        {
+            new CreateOrderItemDto
+            {
+                MenuItemId = 2,
+                Quantity = 1
+            }
+        }
+            };
+
+            var result = await controller.PlaceOrder(1, orderDto);
+
+            Assert.IsType<BadRequestObjectResult>(result.Result);
+            Assert.Empty(context.Orders);
+        }
+
+        [Fact]
+        public async Task ConfirmPayment_NonexistentOrderId_ReturnsNotFound()
+        {
+            using var context = GetInMemoryDbContext();
+
+            var controller = new OrderController(context);
+
+            var result = await controller.ConfirmPayment(999);
+
+            Assert.IsType<NotFoundResult>(result);
+        }
+
+        [Fact]
+        public async Task UpdateOrderStatus_NonexistentId_ReturnsNotFound()
+        {
+            using var context = GetInMemoryDbContext();
+
+            var controller = new OrderController(context);
+
+            var updateDto = new UpdateOrderStatusDto
+            {
+                Status = OrderStatus.ReadyForPickup
+            };
+
+            var result = await controller.UpdateOrderStatus(999, updateDto);
+
+            Assert.IsType<NotFoundResult>(result);
+        }
     }
 }
