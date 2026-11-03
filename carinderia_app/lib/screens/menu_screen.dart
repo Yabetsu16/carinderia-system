@@ -12,14 +12,22 @@ import '../widgets/cart_panel.dart';
 
 class MenuScreen extends StatefulWidget {
   final int tableNumber;
-  const MenuScreen({super.key, required this.tableNumber});
+  final ApiService? apiService;
+  final SignalRService? signalRService;
+
+  const MenuScreen({
+    super.key,
+    required this.tableNumber,
+    this.apiService,
+    this.signalRService,
+  });
 
   @override
   State<MenuScreen> createState() => _MenuScreenState();
 }
 
 class _MenuScreenState extends State<MenuScreen> {
-  final ApiService _apiService = ApiService();
+  late final ApiService _apiService;
   late Future<List<Category>> _menuFuture;
 
   // Local Cart State
@@ -28,12 +36,16 @@ class _MenuScreenState extends State<MenuScreen> {
   bool _isSubmitting = false;
 
   // SignalR & Active Orders State
-  late SignalRService _signalRService;
+  late final SignalRService _signalRService;
   List<Order> _myActiveOrders = [];
 
   @override
   void initState() {
     super.initState();
+
+    _apiService = widget.apiService ?? ApiService();
+    _signalRService = widget.signalRService ?? SignalRService();
+
     _menuFuture = _apiService.getActiveMenu();
     _initSignalR();
     _fetchInitialOrders();
@@ -46,8 +58,6 @@ class _MenuScreenState extends State<MenuScreen> {
   }
 
   Future<void> _initSignalR() async {
-    _signalRService = SignalRService();
-
     await _signalRService.connect(
       ApiService.serverRootUrl,
       onOrderUpdate: (arguments) {
@@ -65,10 +75,11 @@ class _MenuScreenState extends State<MenuScreen> {
 
   Future<void> _fetchInitialOrders() async {
     try {
-      // Fetch orders specifically for this table using the new method
       List<Order> tableOrders = await _apiService.getTableOrders(
         widget.tableNumber,
       );
+
+      if (!mounted) return;
 
       setState(() {
         _myActiveOrders = tableOrders
@@ -216,8 +227,11 @@ class _MenuScreenState extends State<MenuScreen> {
 
             return Padding(
               padding: const EdgeInsets.symmetric(vertical: 4.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              child: Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                runSpacing: 4,
                 children: [
                   Text(
                     'Order #${order.id} (${order.items.length} items)',
