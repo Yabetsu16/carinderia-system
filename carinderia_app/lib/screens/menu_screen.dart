@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 
 import '../models/category.dart';
@@ -28,7 +26,6 @@ class _MenuScreenState extends State<MenuScreen> {
   final Map<int, CartItem> _cart = {};
   int _paymentMethod = 0; // 0 = Cash, 1 = QRCode
   bool _isSubmitting = false;
-  Timer? _pollingTimer; // Add a polling fallback timer
 
   // SignalR & Active Orders State
   late SignalRService _signalRService;
@@ -40,16 +37,10 @@ class _MenuScreenState extends State<MenuScreen> {
     _menuFuture = _apiService.getActiveMenu();
     _initSignalR();
     _fetchInitialOrders();
-
-    // Background polling fallback every 3 seconds
-    _pollingTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
-      _fetchInitialOrders();
-    });
   }
 
   @override
   void dispose() {
-    _pollingTimer?.cancel();
     _signalRService.disconnect();
     super.dispose();
   }
@@ -57,7 +48,6 @@ class _MenuScreenState extends State<MenuScreen> {
   Future<void> _initSignalR() async {
     _signalRService = SignalRService();
 
-    // Connect and bind the listener simultaneously before the handshake finishes
     await _signalRService.connect(
       ApiService.serverRootUrl,
       onOrderUpdate: (arguments) {
@@ -65,12 +55,11 @@ class _MenuScreenState extends State<MenuScreen> {
           "SignalR RAW callback fired on MenuScreen! Arguments: $arguments",
         );
         if (mounted) {
-          _fetchInitialOrders(); // Instantly refresh UI when broadcast hits
+          _fetchInitialOrders();
         }
       },
     );
 
-    // CRITICAL: Explicitly join this table's SignalR group
     await _signalRService.joinTable(widget.tableNumber);
   }
 

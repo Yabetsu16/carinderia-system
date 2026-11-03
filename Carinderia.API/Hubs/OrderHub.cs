@@ -17,7 +17,18 @@ namespace Carinderia.API.Hubs
 
         public async Task JoinKitchen()
         {
-            await Groups.AddToGroupAsync(Context.ConnectionId, "Kitchen");
+            Console.WriteLine(
+                $"[SignalR] Connection {Context.ConnectionId} joining Kitchen");
+
+            await Groups.AddToGroupAsync(
+                Context.ConnectionId,
+                "Kitchen");
+
+            Console.WriteLine(
+                $"[SignalR] Connection {Context.ConnectionId} joined Kitchen");
+
+            Console.WriteLine(
+                $"[SignalR] Direct test sent to {Context.ConnectionId}");
         }
     }
 }

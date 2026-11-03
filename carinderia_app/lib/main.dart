@@ -13,57 +13,70 @@ void main() {
 class CarinderiaApp extends StatelessWidget {
   const CarinderiaApp({super.key});
 
+  Route<dynamic> _generateRoute(RouteSettings settings) {
+    final uri = Uri.parse(settings.name ?? '/');
+
+    if (uri.pathSegments.length == 2) {
+      int? tableNum = int.tryParse(uri.pathSegments[1]);
+
+      if (tableNum != null && uri.pathSegments[0] == 'menu') {
+        return MaterialPageRoute(
+          settings: settings,
+          builder: (context) => MenuScreen(tableNumber: tableNum),
+        );
+      }
+
+      int? tableNumAlt = int.tryParse(uri.pathSegments[0]);
+
+      if (tableNumAlt != null && uri.pathSegments[1] == 'menu') {
+        return MaterialPageRoute(
+          settings: settings,
+          builder: (context) => MenuScreen(tableNumber: tableNumAlt),
+        );
+      }
+    }
+
+    switch (settings.name) {
+      case '/':
+        return MaterialPageRoute(
+          settings: settings,
+          builder: (context) => const MenuScreen(tableNumber: 1),
+        );
+
+      case '/kitchen':
+        return MaterialPageRoute(
+          settings: settings,
+          builder: (context) => const KitchenScreen(),
+        );
+
+      case '/cashier':
+        return MaterialPageRoute(
+          settings: settings,
+          builder: (context) => const CashierScreen(),
+        );
+
+      default:
+        return MaterialPageRoute(
+          settings: settings,
+          builder: (context) =>
+              const Scaffold(body: Center(child: Text('Page not found'))),
+        );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Carinderia Management System',
       theme: ThemeData.dark(useMaterial3: true),
       debugShowCheckedModeBanner: false,
-      initialRoute: '/',
-      // Inside your MaterialApp routing configuration:
-      onGenerateRoute: (settings) {
-        // Matches patterns like /menu/1 or /1/menu
-        Uri uri = Uri.parse(settings.name ?? '/');
 
-        if (uri.pathSegments.length == 2) {
-          // e.g. /menu/1 -> segment 0 is 'menu', segment 1 is '1'
-          int? tableNum = int.tryParse(uri.pathSegments[1]);
-          if (tableNum != null && uri.pathSegments[0] == 'menu') {
-            return MaterialPageRoute(
-              builder: (context) => MenuScreen(tableNumber: tableNum),
-            );
-          }
-
-          // Alternative format: /1/menu -> segment 0 is '1', segment 1 is 'menu'
-          int? tableNumAlt = int.tryParse(uri.pathSegments[0]);
-          if (tableNumAlt != null && uri.pathSegments[1] == 'menu') {
-            return MaterialPageRoute(
-              builder: (context) => MenuScreen(tableNumber: tableNumAlt),
-            );
-          }
-        }
-
-        // Fallback / standard routes
-        switch (settings.name) {
-          case '/':
-            return MaterialPageRoute(
-              builder: (context) => const MenuScreen(tableNumber: 1),
-            ); // Default table 1 if none specified
-          case '/kitchen':
-            return MaterialPageRoute(
-              builder: (context) => const KitchenScreen(),
-            );
-          case '/cashier':
-            return MaterialPageRoute(
-              builder: (context) => const CashierScreen(),
-            );
-          default:
-            return MaterialPageRoute(
-              builder: (context) =>
-                  const Scaffold(body: Center(child: Text('Page not found'))),
-            );
-        }
+      // Generate only the requested initial route.
+      onGenerateInitialRoutes: (initialRoute) {
+        return [_generateRoute(RouteSettings(name: initialRoute))];
       },
+
+      onGenerateRoute: _generateRoute,
     );
   }
 }

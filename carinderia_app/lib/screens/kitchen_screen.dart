@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 
 import '../models/order.dart';
@@ -19,23 +17,16 @@ class _KitchenScreenState extends State<KitchenScreen> {
   late SignalRService _signalRService;
   List<Order> _orders = [];
   bool _isLoading = true;
-  Timer? _pollingTimer;
 
   @override
   void initState() {
     super.initState();
     _fetchOrders();
     _initSignalR();
-
-    _pollingTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
-      _fetchOrders(isBackgroundRefresh: true);
-    });
   }
 
   @override
   void dispose() {
-    // 4. Always cancel the timer and disconnect SignalR when leaving the screen to prevent memory leaks
-    _pollingTimer?.cancel();
     _signalRService.disconnect();
     super.dispose();
   }
@@ -46,12 +37,15 @@ class _KitchenScreenState extends State<KitchenScreen> {
     await _signalRService.connect(
       ApiService.serverRootUrl,
       onOrderUpdate: (arguments) {
-        debugPrint("SignalR RAW callback fired! Arguments: $arguments");
+        debugPrint("[KitchenScreen] Received event: $arguments");
+
         if (mounted) {
           _fetchOrders();
         }
       },
     );
+
+    await _signalRService.joinKitchen();
   }
 
   Future<void> _fetchOrders({bool isBackgroundRefresh = false}) async {

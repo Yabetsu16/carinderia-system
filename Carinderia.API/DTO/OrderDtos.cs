@@ -19,6 +19,26 @@ namespace Carinderia.API.DTO
         public string? SpecialInstruction { get; set; }
     }
 
+    public class OrderUpdateDto
+    {
+        public int Id { get; set; }
+        public int TableNumber { get; set; }
+        public PaymentMethod PaymentMethod { get; set; }
+        public OrderStatus Status { get; set; }
+        public decimal TotalAmount { get; set; }
+        public DateTime CreatedAt { get; set; }
+
+        public List<OrderItemUpdateDto> OrderItems { get; set; } = new();
+    }
+
+    public class OrderItemUpdateDto
+    {
+        public int Id { get; set; }
+        public string MenuItemName { get; set; } = string.Empty;
+        public int Quantity { get; set; }
+        public string? SpecialInstruction { get; set; }
+    }
+
     public class UpdateOrderStatusDto
     {
         public OrderStatus Status { get; set; }

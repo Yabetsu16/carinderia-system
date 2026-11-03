@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:signalr_netcore/signalr_client.dart';
 
 class SignalRService {
@@ -12,26 +13,22 @@ class SignalRService {
 
     _hubConnection = HubConnectionBuilder()
         .withUrl('$baseUrl/orderHub')
-        .withAutomaticReconnect()
         .build();
 
-    // CRITICAL: Register the listener BEFORE starting the connection handshake
     _hubConnection!.on('ReceiveOrderUpdate', (arguments) {
-      print("SignalR raw event 'ReceiveOrderUpdate' triggered!");
+      debugPrint("SignalR raw event 'ReceiveOrderUpdate' triggered!");
       onOrderUpdate(arguments);
     });
 
     try {
       await _hubConnection!.start();
       _isConnected = true;
-      print(
-        "SignalR Connected Successfully. ConnectionId: ${_hubConnection?.connectionId}",
-      );
 
-      // Automatically join the kitchen group right after connection starts
-      await joinKitchen();
+      debugPrint(
+        "[SignalR] Connected. ConnectionId: ${_hubConnection?.connectionId}",
+      );
     } catch (e) {
-      print("SignalR Connection Error: $e");
+      debugPrint("SignalR Connection Error: $e");
     }
   }
 
@@ -39,9 +36,9 @@ class SignalRService {
     if (_isConnected && _hubConnection != null) {
       try {
         await _hubConnection!.invoke('JoinKitchen');
-        print("Successfully invoked JoinKitchen on hub.");
+        debugPrint("Successfully invoked JoinKitchen on hub.");
       } catch (e) {
-        print("Error invoking JoinKitchen: $e");
+        debugPrint("Error invoking JoinKitchen: $e");
       }
     }
   }
@@ -50,17 +47,26 @@ class SignalRService {
     if (_isConnected && _hubConnection != null) {
       try {
         await _hubConnection!.invoke('JoinTable', args: [tableNumber]);
-        print("Successfully invoked JoinTable for Table $tableNumber.");
+        debugPrint("Successfully invoked JoinTable for Table $tableNumber.");
       } catch (e) {
-        print("Error invoking JoinTable: $e");
+        debugPrint("Error invoking JoinTable: $e");
       }
     }
   }
 
   Future<void> disconnect() async {
-    if (_hubConnection != null) {
-      await _hubConnection!.stop();
-      _isConnected = false;
+    final connection = _hubConnection;
+
+    _hubConnection = null;
+    _isConnected = false;
+
+    if (connection != null) {
+      try {
+        await connection.stop();
+        debugPrint('[SignalR] Disconnected.');
+      } catch (e) {
+        debugPrint('[SignalR] Disconnect error: $e');
+      }
     }
   }
 }

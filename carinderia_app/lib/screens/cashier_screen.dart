@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 
 import '../models/order.dart';
@@ -18,24 +16,16 @@ class _CashierScreenState extends State<CashierScreen> {
   late SignalRService _signalRService;
   List<Order> _pendingOrders = [];
   bool _isLoading = true;
-  Timer? _pollingTimer;
 
   @override
   void initState() {
     super.initState();
     _fetchPendingOrders();
     _initSignalR();
-
-    // 3. Start a periodic timer to automatically refresh pending payments every 3 seconds
-    _pollingTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
-      _fetchPendingOrders(isBackgroundRefresh: true);
-    });
   }
 
   @override
   void dispose() {
-    // 4. Always cancel the timer and disconnect SignalR to prevent memory leaks
-    _pollingTimer?.cancel();
     _signalRService.disconnect();
     super.dispose();
   }
@@ -43,7 +33,6 @@ class _CashierScreenState extends State<CashierScreen> {
   Future<void> _initSignalR() async {
     _signalRService = SignalRService();
 
-    // Connect and bind the listener simultaneously before the handshake finishes
     await _signalRService.connect(
       ApiService.serverRootUrl,
       onOrderUpdate: (arguments) {
@@ -51,14 +40,11 @@ class _CashierScreenState extends State<CashierScreen> {
           "SignalR RAW callback fired on CashierScreen! Arguments: $arguments",
         );
         if (mounted) {
-          _fetchPendingOrders(
-            isBackgroundRefresh: true,
-          ); // Instantly refresh UI when broadcast hits
+          _fetchPendingOrders(isBackgroundRefresh: true);
         }
       },
     );
 
-    // Join the Kitchen group so that new orders/updates broadcast to the cashier screen too
     await _signalRService.joinKitchen();
   }
 

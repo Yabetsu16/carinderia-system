@@ -1,8 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
-using System.Threading.Tasks;
 using Carinderia.API.Data;
 using Carinderia.API.DTO;
 using Carinderia.API.Hubs;
@@ -10,7 +6,6 @@ using Carinderia.API.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 
 namespace Carinderia.API.Controllers
 {
@@ -177,14 +172,37 @@ namespace Carinderia.API.Controllers
 
         private async Task NotifyTableAsync(int tableNumber, Order order)
         {
-            if (_hubContext != null && _hubContext.Clients != null)
-            {
-                // 1. Notify the specific table group (for customer live status)
-                await _hubContext.Clients.Group($"Table_{tableNumber}").SendAsync("ReceiveOrderUpdate", order);
+            if (_hubContext == null)
+                return;
 
-                // 2. Notify the Kitchen display group globally
-                await _hubContext.Clients.Group("Kitchen").SendAsync("ReceiveOrderUpdate", order);
-            }
+            var orderUpdate = new OrderUpdateDto
+            {
+                Id = order.Id,
+                TableNumber = order.TableNumber,
+                PaymentMethod = order.PaymentMethod,
+                Status = order.Status,
+                TotalAmount = order.TotalAmount,
+                CreatedAt = order.CreatedAt,
+
+                OrderItems = order.OrderItems.Select(item => new OrderItemUpdateDto
+                {
+                    Id = item.Id,
+                    MenuItemName = item.MenuItem?.Name ?? "Item",
+                    Quantity = item.Quantity,
+                    SpecialInstruction = item.SpecialInstruction
+                }).ToList()
+            };
+
+            await _hubContext.Clients
+                .Group($"Table_{tableNumber}")
+                .SendAsync("ReceiveOrderUpdate", orderUpdate);
+
+            await _hubContext.Clients
+                .Group("Kitchen")
+                .SendAsync("ReceiveOrderUpdate", orderUpdate);
+
+            Console.WriteLine(
+                $"[SignalR] Order #{order.Id} notification sent to Table_{tableNumber} and Kitchen");
         }
     }
 }
