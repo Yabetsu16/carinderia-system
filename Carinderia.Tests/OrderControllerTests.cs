@@ -36,15 +36,38 @@ namespace Carinderia.Tests
             context.SaveChanges();
             return context;
         }
+
+        private Mock<IHubContext<OrderHub>> CreateMockHubContext(
+    out Mock<IClientProxy> tableProxy,
+    out Mock<IClientProxy> kitchenProxy)
+        {
+            var mockHubContext = new Mock<IHubContext<OrderHub>>();
+            var mockClients = new Mock<IHubClients>();
+
+            tableProxy = new Mock<IClientProxy>();
+            kitchenProxy = new Mock<IClientProxy>();
+
+            mockHubContext
+                .Setup(h => h.Clients)
+                .Returns(mockClients.Object);
+
+            mockClients
+                .Setup(c => c.Group(It.Is<string>(group => group != "Kitchen")))
+                .Returns(tableProxy.Object);
+
+            mockClients
+                .Setup(c => c.Group("Kitchen"))
+                .Returns(kitchenProxy.Object);
+
+            return mockHubContext;
+        }
+
         [Fact]
         public async Task PlaceOrder_ValidDto_CreatesOrderAndSetsStatusToPreparing()
         {
             using var context = GetInMemoryDbContext();
             // Create mocks for SignalR hub context
-            var mockHubContext = new Mock<IHubContext<OrderHub>>();
-            var mockClients = new Mock<IHubClients>();
-            var mockClientProxy = new Mock<IClientProxy>();
-            var mockAllProxy = new Mock<IClientProxy>();
+            var mockHubContext = CreateMockHubContext(out _, out _);
 
             var controller = new OrderController(context, mockHubContext.Object);
 
@@ -80,10 +103,7 @@ namespace Carinderia.Tests
             using var context = GetInMemoryDbContext();
 
             // Create mocks for SignalR hub context
-            var mockHubContext = new Mock<IHubContext<OrderHub>>();
-            var mockClients = new Mock<IHubClients>();
-            var mockClientProxy = new Mock<IClientProxy>();
-            var mockAllProxy = new Mock<IClientProxy>();
+            var mockHubContext = CreateMockHubContext(out _, out _);
 
             var order = new Order
             {
@@ -116,11 +136,7 @@ namespace Carinderia.Tests
         public async Task PlaceOrder_QRCodePayment_SetsStatusToPendingPayment()
         {
             using var context = GetInMemoryDbContext();
-            // Create mocks for SignalR hub context
-            var mockHubContext = new Mock<IHubContext<OrderHub>>();
-            var mockClients = new Mock<IHubClients>();
-            var mockClientProxy = new Mock<IClientProxy>();
-            var mockAllProxy = new Mock<IClientProxy>();
+            var mockHubContext = CreateMockHubContext(out _, out _);
 
             var controller = new OrderController(context, mockHubContext.Object);
 
@@ -150,11 +166,7 @@ namespace Carinderia.Tests
         public async Task ConfirmPayment_ValidOrderId_UpdatesStatusToPreparing()
         {
             using var context = GetInMemoryDbContext();
-            // Create mocks for SignalR hub context
-            var mockHubContext = new Mock<IHubContext<OrderHub>>();
-            var mockClients = new Mock<IHubClients>();
-            var mockClientProxy = new Mock<IClientProxy>();
-            var mockAllProxy = new Mock<IClientProxy>();
+            var mockHubContext = CreateMockHubContext(out _, out _);
 
             var order = new Order
             {
@@ -182,6 +194,7 @@ namespace Carinderia.Tests
         public async Task UpdateOrderStatus_SendsSignalRNotificationToSpecificTableGroup()
         {
             using var context = GetInMemoryDbContext();
+
             var order = new Order
             {
                 Id = 30,
@@ -194,17 +207,12 @@ namespace Carinderia.Tests
             context.Orders.Add(order);
             await context.SaveChangesAsync();
 
-            // Mock SignalR Hub Context and Client Proxies for Table group and Kitchen group
-            var mockHubContext = new Mock<IHubContext<OrderHub>>();
-            var mockClients = new Mock<IHubClients>();
-            var mockGroupProxy = new Mock<IClientProxy>();
-            var mockKitchenProxy = new Mock<IClientProxy>();
-
-            mockHubContext.Setup(h => h.Clients).Returns(mockClients.Object);
-            mockClients.Setup(c => c.Group("Table_5")).Returns(mockGroupProxy.Object);
-            mockClients.Setup(c => c.Group("Kitchen")).Returns(mockKitchenProxy.Object);
+            var mockHubContext = CreateMockHubContext(
+                out var mockGroupProxy,
+                out var mockKitchenProxy);
 
             var controller = new OrderController(context, mockHubContext.Object);
+
             var updateDto = new UpdateOrderStatusDto
             {
                 Status = OrderStatus.ReadyForPickup
@@ -212,20 +220,31 @@ namespace Carinderia.Tests
 
             var result = await controller.UpdateOrderStatus(30, updateDto);
 
-            // Assert that the notification was sent to both the specific table group and the kitchen group
             Assert.IsType<OkObjectResult>(result);
 
+            // Verify notification sent to the specific table group.
             mockGroupProxy.Verify(
                 client => client.SendCoreAsync(
                     "ReceiveOrderUpdate",
-                    It.Is<object[]>(o => o.Length == 1 && ((Order)o[0]).Id == 30),
+                    It.Is<object[]>(args =>
+                        args.Length == 1 &&
+                        args[0] is OrderUpdateDto &&
+                        ((OrderUpdateDto)args[0]).Id == 30 &&
+                        ((OrderUpdateDto)args[0]).TableNumber == 5 &&
+                        ((OrderUpdateDto)args[0]).Status == OrderStatus.ReadyForPickup),
                     default),
                 Times.Once);
 
+            // Verify notification sent to the kitchen group.
             mockKitchenProxy.Verify(
                 client => client.SendCoreAsync(
                     "ReceiveOrderUpdate",
-                    It.Is<object[]>(o => o.Length == 1 && ((Order)o[0]).Id == 30),
+                    It.Is<object[]>(args =>
+                        args.Length == 1 &&
+                        args[0] is OrderUpdateDto &&
+                        ((OrderUpdateDto)args[0]).Id == 30 &&
+                        ((OrderUpdateDto)args[0]).TableNumber == 5 &&
+                        ((OrderUpdateDto)args[0]).Status == OrderStatus.ReadyForPickup),
                     default),
                 Times.Once);
         }
